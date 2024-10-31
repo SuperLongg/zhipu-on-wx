@@ -1,4 +1,8 @@
-import logging, traceback, sys, threading
+import logging
+import sys
+import threading
+import traceback
+
 try:
     import Queue
 except ImportError:
@@ -25,12 +29,9 @@ def auto_login(self, hotReload=False, statusStorageDir='itchat.pkl',
     self.useHotReload = hotReload
     self.hotReloadDir = statusStorageDir
     if hotReload:
-        rval=self.load_login_status(statusStorageDir,
-                loginCallback=loginCallback, exitCallback=exitCallback)
-        if rval:
+        if self.load_login_status(statusStorageDir,
+                loginCallback=loginCallback, exitCallback=exitCallback):
             return
-        logger.error('Hot reload failed, logging in normally, error={}'.format(rval))
-        self.logout()
         self.login(enableCmdQR=enableCmdQR, picDir=picDir, qrCallback=qrCallback,
             loginCallback=loginCallback, exitCallback=exitCallback)
         self.dump_login_status(statusStorageDir)

@@ -1,10 +1,11 @@
-import os, time, copy
+import copy
 from threading import Lock
 
 from .messagequeue import Queue
 from .templates import (
     ContactList, AbstractUserDict, User,
     MassivePlatform, Chatroom, ChatroomMember)
+
 
 def contact_change(fn):
     def _contact_change(core, *args, **kwargs):

@@ -1,4 +1,10 @@
-import re, os, sys, subprocess, copy, traceback, logging
+import copy
+import logging
+import os
+import re
+import subprocess
+import sys
+import traceback
 
 try:
     from HTMLParser import HTMLParser

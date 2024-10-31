@@ -1,6 +1,9 @@
-import time, re, io
-import json, copy
+import copy
+import io
+import json
 import logging
+import re
+import time
 
 from .. import config, utils
 from ..components.contact import accept_friend

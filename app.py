@@ -1,15 +1,12 @@
 # encoding:utf-8
 
-import os
 import signal
 import sys
 import time
 
 from channel import channel_factory
-from common import const
-from config import load_config
-from plugins import *
-import threading
+from common.log import logger
+from config import load_config, conf
 
 
 def sigterm_handler_wrap(_signo):
@@ -27,16 +24,6 @@ def sigterm_handler_wrap(_signo):
 
 def start_channel(channel_name: str):
     channel = channel_factory.create_channel(channel_name)
-    if channel_name in ["wx", "wxy", "terminal", "wechatmp", "wechatmp_service", "wechatcom_app", "wework",
-                        const.FEISHU, const.DINGTALK]:
-        PluginManager().load_plugins()
-
-    if conf().get("use_linkai"):
-        try:
-            from common import linkai_client
-            threading.Thread(target=linkai_client.start, args=(channel,)).start()
-        except Exception as e:
-            pass
     channel.startup()
 
 
@@ -51,12 +38,6 @@ def run():
 
         # create channel
         channel_name = conf().get("channel_type", "wx")
-
-        if "--cmd" in sys.argv:
-            channel_name = "terminal"
-
-        if channel_name == "wxy":
-            os.environ["WECHATY_LOG"] = "warn"
 
         start_channel(channel_name)
 

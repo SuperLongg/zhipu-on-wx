@@ -28,8 +28,8 @@ class Channel(object):
     def send(self, reply: Reply, context: Context):
         """
         send message to user
-        :param msg: message content
-        :param receiver: receiver channel account
+        :param reply: message content
+        :param context: receiver channel account
         :return:
         """
         raise NotImplementedError
@@ -42,3 +42,6 @@ class Channel(object):
 
     def build_text_to_voice(self, text) -> Reply:
         return Bridge().fetch_text_to_voice(text)
+
+    def build_translate(self, text) -> Reply:
+        return Bridge().fetch_translate(text)

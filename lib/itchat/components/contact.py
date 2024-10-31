@@ -1,9 +1,9 @@
-import time
-import re
+import copy
 import io
 import json
-import copy
 import logging
+import re
+import time
 
 from .. import config, utils
 from ..returnvalues import ReturnValue

@@ -7,20 +7,20 @@ wechat channel
 import io
 import json
 import os
-import threading
 import time
+
 import requests
 
 from bridge.context import *
 from bridge.reply import *
-from channel.chat_channel import ChatChannel
 from channel import chat_channel
+from channel.chat_channel import ChatChannel
 from channel.wechat.wechat_message import *
 from common.expired_dict import ExpiredDict
 from common.log import logger
 from common.singleton import singleton
 from common.time_check import time_checker
-from common.utils import convert_webp_to_png, remove_markdown_symbol
+from common.utils import convert_webp_to_png
 from config import conf, get_appdata_dir
 from lib import itchat
 from lib.itchat.content import *
@@ -73,30 +73,21 @@ def _check(func):
 def qrCallback(uuid, status, qrcode):
     # logger.debug("qrCallback: {} {}".format(uuid,status))
     if status == "0":
-        try:
-            from PIL import Image
 
-            img = Image.open(io.BytesIO(qrcode))
-            _thread = threading.Thread(target=img.show, args=("QRCode",))
-            _thread.setDaemon(True)
-            _thread.start()
-        except Exception as e:
-            pass
+        # 如果需要弹窗图片二维码打开这里
+        # try:
+        #     from PIL import Image
+        #
+        #     img = Image.open(io.BytesIO(qrcode))
+        #     _thread = threading.Thread(target=img.show, args=("QRCode",))
+        #     _thread.daemon = True
+        #     _thread.start()
+        # except Exception as e:
+        #     pass
 
         import qrcode
 
         url = f"https://login.weixin.qq.com/l/{uuid}"
-
-        qr_api1 = "https://api.isoyu.com/qr/?m=1&e=L&p=20&url={}".format(url)
-        qr_api2 = "https://api.qrserver.com/v1/create-qr-code/?size=400×400&data={}".format(url)
-        qr_api3 = "https://api.pwmqr.com/qrcode/create/?url={}".format(url)
-        qr_api4 = "https://my.tv.sohu.com/user/a/wvideo/getQRCode.do?text={}".format(url)
-        print("You can also scan QRCode in any website below:")
-        print(qr_api3)
-        print(qr_api4)
-        print(qr_api2)
-        print(qr_api1)
-        _send_qr_code([qr_api3, qr_api4, qr_api2, qr_api1])
         qr = qrcode.QRCode(border=1)
         qr.add_data(url)
         qr.make(fit=True)
@@ -139,20 +130,16 @@ class WechatChannel(ChatChannel):
 
     def exitCallback(self):
         try:
-            from common.linkai_client import chat_client
-            if chat_client.client_id and conf().get("use_linkai"):
-                _send_logout()
+            self.auto_login_times += 1
+            if self.auto_login_times < 100:
                 time.sleep(2)
-                self.auto_login_times += 1
-                if self.auto_login_times < 100:
-                    chat_channel.handler_pool._shutdown = False
-                    self.startup()
+                chat_channel.handler_pool._shutdown = False
+                self.startup()
         except Exception as e:
             pass
 
     def loginCallback(self):
         logger.debug("Login success")
-        _send_login_success()
 
     # handle_* 系列函数处理收到的消息后构造Context，然后传入produce函数中处理Context和发送回复
     # Context包含了消息的所有信息，包括以下属性
@@ -191,7 +178,7 @@ class WechatChannel(ChatChannel):
     @_check
     def handle_group(self, cmsg: ChatMessage):
         if cmsg.ctype == ContextType.VOICE:
-            if conf().get("group_speech_recognition") != True:
+            if not conf().get("group_speech_recognition"):
                 return
             logger.debug("[WX]receive voice for group msg: {}".format(cmsg.content))
         elif cmsg.ctype == ContextType.IMAGE:
@@ -213,11 +200,9 @@ class WechatChannel(ChatChannel):
     def send(self, reply: Reply, context: Context):
         receiver = context["receiver"]
         if reply.type == ReplyType.TEXT:
-            reply.content = remove_markdown_symbol(reply.content)
             itchat.send(reply.content, toUserName=receiver)
             logger.info("[WX] sendMsg={}, receiver={}".format(reply, receiver))
         elif reply.type == ReplyType.ERROR or reply.type == ReplyType.INFO:
-            reply.content = remove_markdown_symbol(reply.content)
             itchat.send(reply.content, toUserName=receiver)
             logger.info("[WX] sendMsg={}, receiver={}".format(reply, receiver))
         elif reply.type == ReplyType.VOICE:
@@ -268,30 +253,3 @@ class WechatChannel(ChatChannel):
             video_storage.seek(0)
             itchat.send_video(video_storage, toUserName=receiver)
             logger.info("[WX] sendVideo url={}, receiver={}".format(video_url, receiver))
-
-def _send_login_success():
-    try:
-        from common.linkai_client import chat_client
-        if chat_client.client_id:
-            chat_client.send_login_success()
-    except Exception as e:
-        pass
-
-
-def _send_logout():
-    try:
-        from common.linkai_client import chat_client
-        if chat_client.client_id:
-            chat_client.send_logout()
-    except Exception as e:
-        pass
-
-
-def _send_qr_code(qrcode_list: list):
-    try:
-        from common.linkai_client import chat_client
-        if chat_client.client_id:
-            chat_client.send_qrcode(qrcode_list)
-    except Exception as e:
-        pass
-

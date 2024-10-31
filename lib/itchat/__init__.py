@@ -1,5 +1,5 @@
-from .core import Core
 from .config import VERSION, ASYNC_COMPONENTS
+from .core import Core
 from .log import set_logging
 
 if ASYNC_COMPONENTS:

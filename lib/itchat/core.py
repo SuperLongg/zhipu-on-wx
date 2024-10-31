@@ -2,6 +2,7 @@ import requests
 
 from . import storage
 
+
 class Core(object):
     def __init__(self):
         ''' init is the only method defined in core.py

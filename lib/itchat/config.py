@@ -1,4 +1,5 @@
-import os, platform
+import os
+import platform
 
 VERSION = '1.5.0.dev'
 

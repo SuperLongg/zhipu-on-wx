@@ -1,10 +1,14 @@
 import asyncio
-import os, time, re, io
-import threading
+import io
 import json
-import random
-import traceback
 import logging
+import os
+import random
+import re
+import threading
+import time
+import traceback
+
 try:
     from httplib import BadStatusLine
 except ImportError:
@@ -219,6 +223,10 @@ async def process_login_info(core, loginContent):
     core.loginInfo['logintime'] = int(time.time() * 1e3)
     core.loginInfo['BaseRequest'] = {}
     cookies = core.s.cookies.get_dict()
+    if "skey" not in r.text:
+        logger.error('Your wechat account may be LIMITED to log in WEB wechat, error info:\n%s' % r.text)
+        core.isLogging = False
+        return False
     skey = re.findall('<skey>(.*?)</skey>', r.text, re.S)[0]
     pass_ticket = re.findall('<pass_ticket>(.*?)</pass_ticket>', r.text, re.S)[0]
     core.loginInfo['skey'] = core.loginInfo['BaseRequest']['Skey'] = skey

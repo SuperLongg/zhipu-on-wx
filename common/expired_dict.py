@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+    #一个支持key过期的类似的字典的数据结构
 
 class ExpiredDict(dict):
     def __init__(self, expires_in_seconds):

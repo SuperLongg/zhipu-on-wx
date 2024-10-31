@@ -8,9 +8,10 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from bridge.context import *
 from bridge.reply import *
 from channel.channel import Channel
-from common.dequeue import Dequeue
 from common import memory
-from plugins import *
+from common.dequeue import Dequeue
+from common.log import logger
+from config import conf
 
 try:
     from voice.audio_convert import any_to_wav
@@ -30,7 +31,7 @@ class ChatChannel(Channel):
 
     def __init__(self):
         _thread = threading.Thread(target=self.consume)
-        _thread.setDaemon(True)
+        _thread.daemon = True
         _thread.start()
 
     # 根据消息构造context，消息内容相关的触发项写在这里
@@ -49,8 +50,8 @@ class ChatChannel(Channel):
             config = conf()
             cmsg = context["msg"]
             user_data = conf().get_user_data(cmsg.from_user_id)
-            context["openai_api_key"] = user_data.get("openai_api_key")
-            context["gpt_model"] = user_data.get("gpt_model")
+            context["ai_api_key"] = user_data.get("ai_api_key")
+            context["model"] = user_data.get("model")
             if context.get("isgroup", False):
                 group_name = cmsg.other_user_nickname
                 group_id = cmsg.other_user_id
@@ -81,9 +82,7 @@ class ChatChannel(Channel):
             else:
                 context["session_id"] = cmsg.other_user_id
                 context["receiver"] = cmsg.other_user_id
-            e_context = PluginManager().emit_event(EventContext(Event.ON_RECEIVE_MESSAGE, {"channel": self, "context": context}))
-            context = e_context["context"]
-            if e_context.is_pass() or context is None:
+            if context is None:
                 return context
             if cmsg.from_user_id == self.user_id and not config.get("trigger_by_self", True):
                 logger.debug("[chat_channel]self message skipped")
@@ -179,70 +178,53 @@ class ChatChannel(Channel):
             self._send_reply(context, reply)
 
     def _generate_reply(self, context: Context, reply: Reply = Reply()) -> Reply:
-        e_context = PluginManager().emit_event(
-            EventContext(
-                Event.ON_HANDLE_CONTEXT,
-                {"channel": self, "context": context, "reply": reply},
-            )
-        )
-        reply = e_context["reply"]
-        if not e_context.is_pass():
-            logger.debug("[chat_channel] ready to handle context: type={}, content={}".format(context.type, context.content))
-            if context.type == ContextType.TEXT or context.type == ContextType.IMAGE_CREATE:  # 文字和图片消息
-                context["channel"] = e_context["channel"]
-                reply = super().build_reply_content(context.content, context)
-            elif context.type == ContextType.VOICE:  # 语音消息
-                cmsg = context["msg"]
-                cmsg.prepare()
-                file_path = context.content
-                wav_path = os.path.splitext(file_path)[0] + ".wav"
-                try:
-                    any_to_wav(file_path, wav_path)
-                except Exception as e:  # 转换失败，直接使用mp3，对于某些api，mp3也可以识别
-                    logger.warning("[chat_channel]any to wav error, use raw path. " + str(e))
-                    wav_path = file_path
-                # 语音识别
-                reply = super().build_voice_to_text(wav_path)
-                # 删除临时文件
-                try:
-                    os.remove(file_path)
-                    if wav_path != file_path:
-                        os.remove(wav_path)
-                except Exception as e:
-                    pass
-                    # logger.warning("[chat_channel]delete temp file error: " + str(e))
+        if context.type == ContextType.TEXT or context.type == ContextType.IMAGE_CREATE:  # 文字和图片消息
+            reply = super().build_reply_content(context.content, context)
+        elif context.type == ContextType.VOICE:  # 语音消息
+            cmsg = context["msg"]
+            cmsg.prepare()
+            file_path = context.content
+            wav_path = os.path.splitext(file_path)[0] + ".wav"
+            try:
+                any_to_wav(file_path, wav_path)
+            except Exception as e:  # 转换失败，直接使用mp3，对于某些api，mp3也可以识别
+                logger.warning("[chat_channel]any to wav error, use raw path. " + str(e))
+                wav_path = file_path
+            # 语音识别
+            reply = super().build_voice_to_text(wav_path)
+            # 删除临时文件
+            try:
+                os.remove(file_path)
+                if wav_path != file_path:
+                    os.remove(wav_path)
+            except Exception as e:
+                pass
+                # logger.warning("[chat_channel]delete temp file error: " + str(e))
 
-                if reply.type == ReplyType.TEXT:
-                    new_context = self._compose_context(ContextType.TEXT, reply.content, **context.kwargs)
-                    if new_context:
-                        reply = self._generate_reply(new_context)
-                    else:
-                        return
-            elif context.type == ContextType.IMAGE:  # 图片消息，当前仅做下载保存到本地的逻辑
-                memory.USER_IMAGE_CACHE[context["session_id"]] = {
-                    "path": context.content,
-                    "msg": context.get("msg")
-                }
-            elif context.type == ContextType.SHARING:  # 分享信息，当前无默认逻辑
-                pass
-            elif context.type == ContextType.FUNCTION or context.type == ContextType.FILE:  # 文件消息及函数调用等，当前无默认逻辑
-                pass
-            else:
-                logger.warning("[chat_channel] unknown context type: {}".format(context.type))
-                return
+            if reply.type == ReplyType.TEXT:
+                new_context = self._compose_context(ContextType.TEXT, reply.content, **context.kwargs)
+                if new_context:
+                    reply = self._generate_reply(new_context)
+                else:
+                    return reply
+        elif context.type == ContextType.IMAGE:  # 图片消息，当前仅做下载保存到本地的逻辑
+            memory.USER_IMAGE_CACHE[context["session_id"]] = {
+                "path": context.content,
+                "msg": context.get("msg")
+            }
+        elif context.type == ContextType.SHARING:  # 分享信息，当前无默认逻辑
+            pass
+        elif context.type == ContextType.FUNCTION or context.type == ContextType.FILE:  # 文件消息及函数调用等，当前无默认逻辑
+            pass
+        else:
+            logger.warning("[chat_channel] unknown context type: {}".format(context.type))
+            return reply
         return reply
 
     def _decorate_reply(self, context: Context, reply: Reply) -> Reply:
         if reply and reply.type:
-            e_context = PluginManager().emit_event(
-                EventContext(
-                    Event.ON_DECORATE_REPLY,
-                    {"channel": self, "context": context, "reply": reply},
-                )
-            )
-            reply = e_context["reply"]
             desire_rtype = context.get("desire_rtype")
-            if not e_context.is_pass() and reply and reply.type:
+            if reply and reply.type:
                 if reply.type in self.NOT_SUPPORT_REPLYTYPE:
                     logger.error("[chat_channel]reply type not support: " + str(reply.type))
                     reply.type = ReplyType.ERROR
@@ -266,23 +248,15 @@ class ChatChannel(Channel):
                     pass
                 else:
                     logger.error("[chat_channel] unknown reply type: {}".format(reply.type))
-                    return
+                    return reply
             if desire_rtype and desire_rtype != reply.type and reply.type not in [ReplyType.ERROR, ReplyType.INFO]:
                 logger.warning("[chat_channel] desire_rtype: {}, but reply type: {}".format(context.get("desire_rtype"), reply.type))
             return reply
 
     def _send_reply(self, context: Context, reply: Reply):
         if reply and reply.type:
-            e_context = PluginManager().emit_event(
-                EventContext(
-                    Event.ON_SEND_REPLY,
-                    {"channel": self, "context": context, "reply": reply},
-                )
-            )
-            reply = e_context["reply"]
-            if not e_context.is_pass() and reply and reply.type:
-                logger.debug("[chat_channel] ready to send reply: {}, context: {}".format(reply, context))
-                self._send(reply, context)
+            logger.debug("[chat_channel] ready to send reply: {}, context: {}".format(reply, context))
+            self._send(reply, context)
 
     def _send(self, reply: Reply, context: Context, retry_cnt=0):
         try:
@@ -337,27 +311,24 @@ class ChatChannel(Channel):
         while True:
             with self.lock:
                 session_ids = list(self.sessions.keys())
-            for session_id in session_ids:
-                with self.lock:
+                for session_id in session_ids:
                     context_queue, semaphore = self.sessions[session_id]
-                if semaphore.acquire(blocking=False):  # 等线程处理完毕才能删除
-                    if not context_queue.empty():
-                        context = context_queue.get()
-                        logger.debug("[chat_channel] consume context: {}".format(context))
-                        future: Future = handler_pool.submit(self._handle, context)
-                        future.add_done_callback(self._thread_pool_callback(session_id, context=context))
-                        with self.lock:
+                    if semaphore.acquire(blocking=False):  # 等线程处理完毕才能删除
+                        if not context_queue.empty():
+                            context = context_queue.get()
+                            logger.debug("[chat_channel] consume context: {}".format(context))
+                            future: Future = handler_pool.submit(self._handle, context)
+                            future.add_done_callback(self._thread_pool_callback(session_id, context=context))
                             if session_id not in self.futures:
                                 self.futures[session_id] = []
                             self.futures[session_id].append(future)
-                    elif semaphore._initial_value == semaphore._value + 1:  # 除了当前，没有任务再申请到信号量，说明所有任务都处理完毕
-                        with self.lock:
+                        elif semaphore._initial_value == semaphore._value + 1:  # 除了当前，没有任务再申请到信号量，说明所有任务都处理完毕
                             self.futures[session_id] = [t for t in self.futures[session_id] if not t.done()]
                             assert len(self.futures[session_id]) == 0, "thread pool error"
                             del self.sessions[session_id]
-                    else:
-                        semaphore.release()
-            time.sleep(0.2)
+                        else:
+                            semaphore.release()
+            time.sleep(0.1)
 
     # 取消session_id对应的所有任务，只能取消排队的消息和已提交线程池但未执行的任务
     def cancel_session(self, session_id):

@@ -1,13 +1,14 @@
-import pickle, os
 import logging
+import os
+import pickle
 
 import requests  # type: ignore
 
+from .contact import update_local_chatrooms, update_local_friends
+from .messages import produce_msg
 from ..config import VERSION
 from ..returnvalues import ReturnValue
 from ..storage import templates
-from .contact import update_local_chatrooms, update_local_friends
-from .messages import produce_msg
 
 logger = logging.getLogger('itchat')
 

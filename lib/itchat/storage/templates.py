@@ -1,4 +1,5 @@
-import logging, copy, pickle
+import copy
+import logging
 from weakref import ref
 
 from ..returnvalues import ReturnValue

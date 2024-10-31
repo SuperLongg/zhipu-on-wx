@@ -1,13 +1,13 @@
-import os
-import time
-import re
 import io
-import threading
 import json
-import xml.dom.minidom
-import random
-import traceback
 import logging
+import os
+import random
+import re
+import threading
+import time
+import traceback
+
 try:
     from httplib import BadStatusLine
 except ImportError:
@@ -43,7 +43,6 @@ def login(self, enableCmdQR=False, picDir=None, qrCallback=None,
         logger.warning('itchat has already logged in.')
         return
     self.isLogging = True
-    logger.info('Ready to login.')
     while self.isLogging:
         uuid = push_login(self)
         if uuid:
@@ -55,7 +54,7 @@ def login(self, enableCmdQR=False, picDir=None, qrCallback=None,
             logger.info('Downloading QR code.')
             qrStorage = self.get_QR(enableCmdQR=enableCmdQR,
                                     picDir=picDir, qrCallback=qrCallback)
-            # logger.info('Please scan the QR code to log in.')
+            logger.info('Please scan the QR code to log in.')
         isLoggedIn = False
         while not isLoggedIn:
             status = self.check_login()
@@ -68,7 +67,6 @@ def login(self, enableCmdQR=False, picDir=None, qrCallback=None,
                 if isLoggedIn is not None:
                     logger.info('Please press confirm on your phone.')
                     isLoggedIn = None
-                    time.sleep(7)
                 time.sleep(0.5)
             elif status != '408':
                 break
@@ -85,7 +83,7 @@ def login(self, enableCmdQR=False, picDir=None, qrCallback=None,
     if hasattr(loginCallback, '__call__'):
         r = loginCallback()
     else:
-        # utils.clear_screen()
+        utils.clear_screen()
         if os.path.exists(picDir or config.DEFAULT_QR):
             os.remove(picDir or config.DEFAULT_QR)
         logger.info('Login successfully as %s' % self.storageClass.nickName)
@@ -196,17 +194,17 @@ def process_login_info(core, loginContent):
     core.loginInfo['logintime'] = int(time.time() * 1e3)
     core.loginInfo['BaseRequest'] = {}
     cookies = core.s.cookies.get_dict()
-    res = re.findall('<skey>(.*?)</skey>', r.text, re.S)
-    skey = res[0] if res else None
-    res = re.findall(
-        '<pass_ticket>(.*?)</pass_ticket>', r.text, re.S)
-    pass_ticket = res[0] if res else None
-    if skey is not None:
-        core.loginInfo['skey'] = core.loginInfo['BaseRequest']['Skey'] = skey
+    if "skey" not in r.text:
+        logger.error('Your wechat account may be LIMITED to log in WEB wechat, error info:\n%s' % r.text)
+        core.isLogging = False
+        return False
+    skey = re.findall('<skey>(.*?)</skey>', r.text, re.S)[0]
+    pass_ticket = re.findall(
+        '<pass_ticket>(.*?)</pass_ticket>', r.text, re.S)[0]
+    core.loginInfo['skey'] = core.loginInfo['BaseRequest']['Skey'] = skey
     core.loginInfo['wxsid'] = core.loginInfo['BaseRequest']['Sid'] = cookies["wxsid"]
     core.loginInfo['wxuin'] = core.loginInfo['BaseRequest']['Uin'] = cookies["wxuin"]
-    if pass_ticket is not None:
-        core.loginInfo['pass_ticket'] = pass_ticket
+    core.loginInfo['pass_ticket'] = pass_ticket
     # A question : why pass_ticket == DeviceID ?
     #               deviceID is only a randomly generated number
 
@@ -322,8 +320,6 @@ def start_receiving(self, exitCallback=None, getReceivingFnOnly=False):
                 retryCount += 1
                 logger.error(traceback.format_exc())
                 if self.receivingRetryCount < retryCount:
-                    logger.error("Having tried %s times, but still failed. " % (
-                        retryCount) + "Stop trying...")
                     self.alive = False
                 else:
                     time.sleep(1)
@@ -370,7 +366,7 @@ def sync_check(self):
     regx = r'window.synccheck={retcode:"(\d+)",selector:"(\d+)"}'
     pm = re.search(regx, r.text)
     if pm is None or pm.group(1) != '0':
-        logger.error('Unexpected sync check result: %s' % r.text)
+        logger.debug('Unexpected sync check result: %s' % r.text)
         return None
     return pm.group(2)
 
