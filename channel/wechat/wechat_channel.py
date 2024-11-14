@@ -152,6 +152,7 @@ class WechatChannel(ChatChannel):
     #        msg: ChatMessage消息对象
     #        origin_ctype: 原始消息类型，语音转文字后，私聊时如果匹配前缀失败，会根据初始消息是否是语音来放宽触发规则
     #        desire_rtype: 希望回复类型，默认是文本回复，设置为ReplyType.VOICE是语音回复
+    #        style: 提问类型，分析用户的输入是哪种类型
     @time_checker
     @_check
     def handle_single(self, cmsg: ChatMessage):

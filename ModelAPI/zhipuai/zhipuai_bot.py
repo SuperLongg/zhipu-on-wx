@@ -1,7 +1,10 @@
 # encoding:utf-8
+from datetime import datetime
 
 from zhipuai import ZhipuAI
 
+from Category.data import data_prompt
+from Category.weather import weather_prompt
 from ModelAPI.bot import Bot
 from ModelAPI.session_manager import SessionManager
 from ModelAPI.zhipuai.zhipu_ai_image import ZhipuAIImage
@@ -28,6 +31,7 @@ class ZHIPUAIBot(Bot, ZhipuAIImage):
                 "enable": True
             }
         }]
+        #很重要的一点，zhipu的网络检索是智谱内部自动判断是否需要进行，触发方式不确定，目前是在系统提示词中加入时间会跟容易触发
         self.client = ZhipuAI(api_key=conf().get("zhipu_ai_api_key") or conf().get("ai_api_key"))
 
     def reply(self, query, context=None):
@@ -52,7 +56,7 @@ class ZHIPUAIBot(Bot, ZhipuAIImage):
             logger.debug("[ZHIPU_AI] session query={}".format(session.messages))
 
             new_args = self.args.copy()
-            reply_content = self.reply_text(session, args=new_args)
+            reply_content = self.reply_text(session, args=new_args, style=context.kwargs['style'])
             logger.debug(
                 "[ZHIPU_AI] new_query={}, session_id={}, reply_cont={}, completion_tokens={}".format(
                     session.messages,
@@ -82,17 +86,35 @@ class ZHIPUAIBot(Bot, ZhipuAIImage):
             reply = Reply(ReplyType.ERROR, "Bot不支持处理{}类型的消息".format(context.type))
             return reply
 
-    def reply_text(self, session: ZhipuAISession, args=None, retry_count=0) -> dict:
+    def reply_text(self, session: ZhipuAISession, args=None, style=None, retry_count=0) -> dict:
         """
-        call openai's ChatCompletion to get the answer
+        call zhipu AI to get the answer
         :param session: a conversation session
+        :param args: AI parameters
+        :param style: Type of content
         :param retry_count: retry count
         :return: {}
         """
         try:
             if args is None:
                 args = self.args
-            response = self.client.chat.completions.create(messages=session.messages, **args, tools=self.tools)
+            messages = session.messages
+            if "1" in style:
+                messages = [{"role": "system", "content": data_prompt},
+                            messages[-1],
+                            {"role": "user", "content": f"Time is {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, 周{datetime.now().weekday() + 1}"}]
+                args["top_p"] = 0
+                logger.debug("[ZHIPU_AI] style=1 args={}".format(args))
+                response = self.client.chat.completions.create(messages=messages, **args, tools=self.tools)
+            elif "2" in style:
+                messages = [{"role": "system", "content": weather_prompt.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))},
+                            messages[-1]]
+                logger.debug("[ZHIPU_AI] style=2 args={}".format(args))
+                response = self.client.chat.completions.create(messages=messages, **args, tools=self.tools)
+            elif "0" in style:
+                response = self.client.chat.completions.create(messages=messages, **args)
+            else:
+                return {"completion_tokens": 0, "content": "类别解析错误，不在定义内"}
             logger.debug("[ZHIPU_AI] response={}".format(response))
             return {
                 "total_tokens": response.usage.total_tokens,

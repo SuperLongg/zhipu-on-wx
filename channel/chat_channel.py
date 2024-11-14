@@ -5,6 +5,7 @@ import time
 from asyncio import CancelledError
 from concurrent.futures import Future, ThreadPoolExecutor
 
+from Category.init import init
 from bridge.context import *
 from bridge.reply import *
 from channel.channel import Channel
@@ -165,6 +166,8 @@ class ChatChannel(Channel):
         if context is None or not context.content:
             return
         logger.debug("[chat_channel] ready to handle context: {}".format(context))
+        #在此处加工一下context.content
+        context = init(context)
         # reply的构建步骤
         reply = self._generate_reply(context)
 
