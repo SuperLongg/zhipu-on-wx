@@ -104,7 +104,7 @@ class ZHIPUAIBot(Bot, ZhipuAIImage):
                             messages[-1]]
                 args["top_p"] = 0
                 logger.debug("[ZHIPU_AI] style=1 args={}".format(args))
-                response = self.client.chat.completions.create(messages=messages, **args, tools=self.tools)
+                response = self.client.chat.completions.create(messages=messages, **args)
                 response.choices[0].message.content = response.choices[0].message.content.rpartition('\n')[-1]
             elif "2" in style:
                 messages = [{"role": "system", "content": weather_prompt.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))},
