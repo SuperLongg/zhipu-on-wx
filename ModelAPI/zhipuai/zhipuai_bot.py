@@ -100,12 +100,12 @@ class ZHIPUAIBot(Bot, ZhipuAIImage):
                 args = self.args
             messages = session.messages
             if "1" in style:
-                messages = [{"role": "system", "content": data_prompt},
-                            messages[-1],
-                            {"role": "user", "content": f"Time is {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, 周{datetime.now().weekday() + 1}"}]
+                messages = [{"role": "system", "content": data_prompt.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), datetime.now().weekday() + 1)},
+                            messages[-1]]
                 args["top_p"] = 0
                 logger.debug("[ZHIPU_AI] style=1 args={}".format(args))
                 response = self.client.chat.completions.create(messages=messages, **args, tools=self.tools)
+                response.choices[0].message.content = response.choices[0].message.content.rpartition('\n')[-1]
             elif "2" in style:
                 messages = [{"role": "system", "content": weather_prompt.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))},
                             messages[-1]]
