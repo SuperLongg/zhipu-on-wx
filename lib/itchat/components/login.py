@@ -14,7 +14,7 @@ except ImportError:
     from http.client import BadStatusLine
 
 import requests
-from pyqrcode import QRCode
+from qrcode import QRCode
 
 from .. import config, utils
 from ..returnvalues import ReturnValue
@@ -124,8 +124,11 @@ def get_QR(self, uuid=None, enableCmdQR=False, picDir=None, qrCallback=None):
     uuid = uuid or self.uuid
     picDir = picDir or config.DEFAULT_QR
     qrStorage = io.BytesIO()
-    qrCode = QRCode('https://login.weixin.qq.com/l/' + uuid)
-    qrCode.png(qrStorage, scale=10)
+    qrCode = QRCode(border=1)
+    qrCode.add_data('https://login.weixin.qq.com/l/' + uuid)
+    qrCode.make(fit=True)
+    img = qrCode.make_image(fill='black', back_color='white')
+    img.save(qrStorage, format='PNG')
     if hasattr(qrCallback, '__call__'):
         qrCallback(uuid=uuid, status='0', qrcode=qrStorage.getvalue())
     else:
