@@ -1,6 +1,0 @@
-#voice
-pydub>=0.25.1 # need ffmpeg
-#baidu_aip>=4.16.10 # baidu voice
-
-# zhipuai
-zhipuai>=2.0.1
